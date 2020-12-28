@@ -63,17 +63,17 @@ inline void StepperAxis::enable(){
 }
 
 inline uint8_t StepperAxis::checkLim0(){
-	uint8_t tmp = 0;// delay(1);
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
-	tmp = tmp + (~((uint8_t)digitalRead(sw0)^sw0Type))&0x01;
+	uint8_t tmp = 0;
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
+	tmp = tmp + (digitalRead(sw0) == sw0Type);
 	return tmp >= LWcheckThres;	
 }
 
@@ -83,16 +83,16 @@ inline uint8_t StepperAxis::checkLim1(){
 	}
 	else{
 		uint8_t tmp = 0;// delay(1);
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
-		tmp = tmp + (~((uint8_t)digitalRead(sw1)^sw1Type))&0x01;
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
+		tmp = tmp + (digitalRead(sw1) == sw1Type);
 		return tmp >= LWcheckThres;	
 	}
 }
@@ -116,14 +116,14 @@ void     StepperAxis::set_maxStep(long int new_maxStep){
 
 
 inline uint8_t StepperAxis::adv1step(int8_t dir){
-	if (checkLim0()) return AT_SW0_POSITION; // check whether at 0 position
-	if (checkLim1()) return AT_SW1_POSITION; // check whether at 1 position
+	uint8_t tmp_return = AT_NOR_POSITION;
+	if (checkLim0()) tmp_return = AT_SW0_POSITION; // check whether at 0 position
+	if (checkLim1()) tmp_return = AT_SW1_POSITION; // check whether at 1 position
 	
 	while (AXIS_SERIAL.available()){
 		char tmp = AXIS_SERIAL.read();
 		if (tmp == ';') return USR_TERMINATION;
 	}
-	enable();				 //enabling steppers
 	if (uln_or_driver == 0){ //this means it's using uln stepper
 		step(dir * directionType);
 	}
@@ -133,10 +133,10 @@ inline uint8_t StepperAxis::adv1step(int8_t dir){
 		digitalWrite(pin2_or_stp, HIGH);
 		delayMicroseconds(udelay);
 		digitalWrite(pin2_or_stp, LOW);
-		delayMicroseconds(udelay);  
+		delayMicroseconds(udelay); 
+		AXIS_SERIAL.print("1"); 
 	}
-	disable();				 //disabling the steppers
-	return AT_NOR_POSITION;
+	return tmp_return;
 }
 
 uint8_t StepperAxis::gotoLim0(){
@@ -150,7 +150,7 @@ uint8_t StepperAxis::gotoLim0(){
 		}
 	}
 	delay(400);
-	for (uint8_t i = 0; i < 250; i++){
+	for (int i = 0; i < 400; i++){
 		tmp = adv1step(1);
 		if (tmp == USR_TERMINATION){
 			return USR_TERMINATION;
@@ -209,7 +209,7 @@ uint8_t StepperAxis::advStep(long int x){
 
 		if(tmp == AT_SW0_POSITION){curStep = 0      ; return AT_SW0_POSITION;}
 		if(tmp == AT_SW1_POSITION){curStep = maxStep; return AT_SW1_POSITION;}
-		if (tmp == USR_TERMINATION){return USR_TERMINATION;}
+		if (tmp == USR_TERMINATION){curStep = curStep + x * (i); return USR_TERMINATION;}
 	}
 	curStep = curStep + x * relativeDir;
 
@@ -228,19 +228,22 @@ void StepperAxis::print(char * str){
 }
 
 void StepperAxis::handler() {
-  char* argument = strtok(NULL, DELIMETERS);
-  AXIS_SERIAL.println(argument);
-  if (argument == NULL) {
-    AXIS_SERIAL.println("No argument found");
-    return;
-  }
-  else if (!strcmp(argument, "goto"  ))      {argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); gotoStep(tmp);}
-  else if (!strcmp(argument, "adv"   ))      {argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); advStep(tmp);}
-  else if (!strcmp(argument, "limit0"))      {gotoLim0();}
-  else if (!strcmp(argument, "limit1"))      {gotoLim1();}
-  else if (!strcmp(argument, "check0" ))      {AXIS_SERIAL.println(checkLim0());}
-  else if (!strcmp(argument, "check1" ))      {AXIS_SERIAL.println(checkLim1());}
+	char* argument = strtok(NULL, DELIMETERS);
+	AXIS_SERIAL.println(argument);
 
+	if (argument == NULL) {
+		AXIS_SERIAL.println("No argument found");
+		return;
+	}
+	else if (!strcmp(argument, "goto"  ))      {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); gotoStep(tmp); disable();}
+	else if (!strcmp(argument, "adv"   ))      {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); advStep(tmp) ; disable();}
+	else if (!strcmp(argument, "limit0"))      {enable(); gotoLim0(); disable();}
+	else if (!strcmp(argument, "limit1"))      {enable(); gotoLim1(); disable();}
+	else if (!strcmp(argument, "check0" ))     {AXIS_SERIAL.println(checkLim0());}
+	else if (!strcmp(argument, "check1" ))     {AXIS_SERIAL.println(checkLim1());}
+	else if (!strcmp(argument, "current"))     {AXIS_SERIAL.println(get_curStep());}
 
-  AXIS_SERIAL.println("done");
+					 //disabling the steppers
+
+	AXIS_SERIAL.println("done");
 }
