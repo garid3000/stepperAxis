@@ -119,7 +119,10 @@ inline uint8_t StepperAxis::adv1step(int8_t dir){
 	if (checkLim0()) return AT_SW0_POSITION; // check whether at 0 position
 	if (checkLim1()) return AT_SW1_POSITION; // check whether at 1 position
 	
-
+	while (AXIS_SERIAL.available()){
+		char tmp = AXIS_SERIAL.read();
+		if (tmp == ';') return USR_TERMINATION;
+	}
 	enable();				 //enabling steppers
 	if (uln_or_driver == 0){ //this means it's using uln stepper
 		step(dir * directionType);
@@ -142,18 +145,27 @@ uint8_t StepperAxis::gotoLim0(){
 		tmp = adv1step(-1);
 		if (tmp == AT_SW0_POSITION){
 			break;
+		} else if (tmp == USR_TERMINATION){
+			return USR_TERMINATION;
 		}
 	}
 	delay(400);
 	for (uint8_t i = 0; i < 250; i++){
 		tmp = adv1step(1);
+		if (tmp == USR_TERMINATION){
+			return USR_TERMINATION;
+		}
 	}
 	while(true){
 		tmp = adv1step(-1);
 		if (tmp == AT_SW0_POSITION){
 			break;
+		} else if (tmp == USR_TERMINATION){
+			return USR_TERMINATION;
 		}
 	}
+	curStep = 0;
+	return AT_SW0_POSITION;
 }
 
 
@@ -163,24 +175,72 @@ uint8_t StepperAxis::gotoLim1(){
 		tmp = adv1step(1);
 		if (tmp == AT_SW1_POSITION){
 			break;
+		} else if (tmp == USR_TERMINATION){
+			return USR_TERMINATION;
 		}
 	}
 	delay(400);
 	for (uint8_t i = 0; i < 250; i++){
 		tmp = adv1step(-1);
+		if (tmp == USR_TERMINATION){
+			return USR_TERMINATION;
+		}
 	}
 	while(true){
 		tmp = adv1step(1);
 		if (tmp == AT_SW1_POSITION){
 			break;
+		} else if (tmp == USR_TERMINATION){
+			return USR_TERMINATION;
 		}
 	}
+	curStep = maxStep;
+	return AT_SW1_POSITION;
 }
 
 
 uint8_t StepperAxis::advStep(long int x){
-	;
+	int8_t relativeDir = 1*(x>0) - 1*(x<0);
+	uint8_t tmp;
+
+	x = abs(x);
+	for(long int i = 0; i < x; i++){
+		tmp = adv1step(relativeDir);
+
+		if(tmp == AT_SW0_POSITION){curStep = 0      ; return AT_SW0_POSITION;}
+		if(tmp == AT_SW1_POSITION){curStep = maxStep; return AT_SW1_POSITION;}
+		if (tmp == USR_TERMINATION){return USR_TERMINATION;}
+	}
+	curStep = curStep + x * relativeDir;
+
+	return AT_NOR_POSITION;
 }
 uint8_t StepperAxis::gotoStep(long int x){
-	;
+	if (x <= 0) 			{return gotoLim0();}
+	else if (x >= maxStep)	{return gotoLim1();}
+	else{
+		return advStep(x - curStep);
+	}
+}
+
+void StepperAxis::print(char * str){
+	AXIS_SERIAL.print(str);
+}
+
+void StepperAxis::handler() {
+  char* argument = strtok(NULL, DELIMETERS);
+  AXIS_SERIAL.println(argument);
+  if (argument == NULL) {
+    AXIS_SERIAL.println("No argument found");
+    return;
+  }
+  else if (!strcmp(argument, "goto"  ))      {argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); gotoStep(tmp);}
+  else if (!strcmp(argument, "adv"   ))      {argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); advStep(tmp);}
+  else if (!strcmp(argument, "limit0"))      {gotoLim0();}
+  else if (!strcmp(argument, "limit1"))      {gotoLim1();}
+  else if (!strcmp(argument, "check0" ))      {AXIS_SERIAL.println(checkLim0());}
+  else if (!strcmp(argument, "check1" ))      {AXIS_SERIAL.println(checkLim1());}
+
+
+  AXIS_SERIAL.println("done");
 }

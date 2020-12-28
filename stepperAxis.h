@@ -1,13 +1,25 @@
 #ifndef GARIDS_STEPPER_AXIS
 #define GARIDS_STEPPER_AXIS
 
+
+#ifndef AXIS_SERIAL
+#define AXIS_SERIAL Serial
+#endif
+
+
 #ifndef LWcheckThres
 #define LWcheckThres 4
 #endif
 
+#ifndef DELIMETERS
+#define DELIMETERS " ,\r\n\t"
+#endif
+
+
 #define AT_SW0_POSITION 10
 #define AT_SW1_POSITION 11
 #define AT_NOR_POSITION 0
+#define USR_TERMINATION 20
 
 
 
@@ -41,7 +53,7 @@ private:
 public:
     StepperAxis(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
 
-	void init(int8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, int);
+	void init(int8_t=1, uint8_t=1, uint8_t=1, uint8_t=1, uint8_t=1, uint8_t=1, int=1000);
 	inline void disable();
 	inline void enable();
 	inline uint8_t checkLim0();
@@ -59,6 +71,10 @@ public:
 
 	uint8_t advStep(long int);
 	uint8_t gotoStep(long int);
+    void    handler();
+    void    print(char *);
+
+
 };
 
 
