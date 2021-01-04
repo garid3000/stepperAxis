@@ -29,6 +29,8 @@ void StepperAxis::init(	int8_t dirType    = 1,
 	sw0Type       = s0type;
 	sw1Type       = s1type;
 	udelay        = ud;
+	overrideSW0   = 1;
+	overrideSW1   = 1;
 	//-------------------------//
 	if (uln_or_driver == 0){ //this means it's using uln stepper
 		pinMode(pin1_or_dir, OUTPUT); 
@@ -38,6 +40,20 @@ void StepperAxis::init(	int8_t dirType    = 1,
 		setSpeed(10);
 	}
 }
+void StepperAxis::set_overrideSW0(uint8_t x){
+	overrideSW0 = x;
+}
+uint8_t StepperAxis::get_overrideSW0(){
+	return overrideSW0;
+}
+void StepperAxis::set_overrideSW1(uint8_t x){
+	overrideSW1 = x;
+}
+uint8_t StepperAxis::get_overrideSW1(){
+	return overrideSW1;
+}
+
+
 
 inline void StepperAxis::disable(){
 	if (uln_or_driver == 0){ //this means it's using uln stepper
@@ -107,6 +123,9 @@ inline uint8_t StepperAxis::checkLim(){
 long int StepperAxis::get_curStep(){
 	return curStep;
 }
+long int StepperAxis::get_maxStep(){
+	return maxStep;
+}
 void     StepperAxis::set_curStep(long int new_curStep){
 	curStep = new_curStep;
 }
@@ -141,6 +160,14 @@ inline uint8_t StepperAxis::adv1step(int8_t dir){
 
 uint8_t StepperAxis::gotoLim0(){
 	uint8_t tmp;
+	if (overrideSW0 == 0){	//if it's overrided curStep may be at below 0
+							//So we need to 1st make it into Positive curStep 
+							//before we proceed to goto limit0 position
+		gotoStep(1000);		
+							//if 1000 isn't enought, YOU ARE ON YOUR OWN !
+	}
+
+
 	while(true){
 		tmp = adv1step(-1);
 		if (tmp == AT_SW0_POSITION){
@@ -207,9 +234,21 @@ uint8_t StepperAxis::advStep(long int x){
 	for(long int i = 0; i < x; i++){
 		tmp = adv1step(relativeDir);
 
-		if(tmp == AT_SW0_POSITION){curStep = 0      ; return AT_SW0_POSITION;}
-		if(tmp == AT_SW1_POSITION){curStep = maxStep; return AT_SW1_POSITION;}
-		if (tmp == USR_TERMINATION){curStep = curStep + x * (i); return USR_TERMINATION;}
+		if(tmp == AT_SW0_POSITION){
+			if(relativeDir < 0 && overrideSW0){
+				curStep = 0; 
+				return AT_SW0_POSITION;}
+		}
+		if(tmp == AT_SW1_POSITION){
+			if(relativeDir > 0 && overrideSW1){
+				curStep = maxStep; 
+				return AT_SW1_POSITION;
+			}
+		}
+		if (tmp == USR_TERMINATION) {
+			curStep = curStep + x * (i); 
+			return USR_TERMINATION;
+		}
 	}
 	curStep = curStep + x * relativeDir;
 
@@ -241,7 +280,10 @@ void StepperAxis::handler() {
 	else if (!strcmp(argument, "limit1"))      {enable(); gotoLim1(); disable();}
 	else if (!strcmp(argument, "check0" ))     {AXIS_SERIAL.println(checkLim0());}
 	else if (!strcmp(argument, "check1" ))     {AXIS_SERIAL.println(checkLim1());}
-	else if (!strcmp(argument, "current"))     {AXIS_SERIAL.println(get_curStep());}
+	else if (!strcmp(argument, "curStep"))     {AXIS_SERIAL.println(get_curStep());}
+	else if (!strcmp(argument, "maxStep"))     {AXIS_SERIAL.println(get_maxStep());}
+	else if (!strcmp(argument, "set_curStep")) {argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); set_curStep(tmp);}
+	else if (!strcmp(argument, "set_maxStep")) {argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); set_maxStep(tmp);}
 
 					 //disabling the steppers
 

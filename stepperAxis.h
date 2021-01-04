@@ -3,7 +3,7 @@
 
 
 #ifndef AXIS_SERIAL
-#define AXIS_SERIAL Serial
+#define AXIS_SERIAL Serial1
 #endif
 
 
@@ -43,8 +43,13 @@ private:
 	uint8_t sleepType;			// 1 means high-working, 0 means low-working
 	uint8_t uln_or_driver;		// 1 means driver      , 0 means uln driver
 
-	uint8_t sw0Type;
-	uint8_t sw1Type;
+								// Default	|	Value	
+	uint8_t sw0Type;			// (1)		|	1 means the sensor outputs HIGH when sensed
+	uint8_t sw1Type;			// (1)		|	0 means LOW when sensed
+
+								// Default	|	Value
+	uint8_t overrideSW0;		// (1)		|	1 means won't go below When sw0 sensed
+	uint8_t overrideSW1;		// (1)		|	0: WARNING: it overrides & goes when sw0 sensed
 
 	int udelay;
 	//software related
@@ -54,6 +59,11 @@ public:
     StepperAxis(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
 
 	void init(int8_t=1, uint8_t=1, uint8_t=1, uint8_t=1, uint8_t=1, uint8_t=1, int=1000);
+	void    set_overrideSW0(uint8_t);
+	void    set_overrideSW1(uint8_t);
+	uint8_t get_overrideSW0();
+	uint8_t get_overrideSW1();
+
 	inline void disable();
 	inline void enable();
 	inline uint8_t checkLim0();
@@ -61,8 +71,10 @@ public:
 	inline uint8_t checkLim();
 
 	long int get_curStep();
+	long int get_maxStep();
 	void     set_curStep(long int);
 	void     set_maxStep(long int);
+
 
 	inline uint8_t adv1step(int8_t);
 
