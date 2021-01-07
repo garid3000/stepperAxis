@@ -136,15 +136,29 @@ void     StepperAxis::set_maxStep(long int new_maxStep){
 
 inline uint8_t StepperAxis::adv1step(int8_t dir){
 	uint8_t tmp_return = AT_NOR_POSITION;
-	if (checkLim0()) tmp_return = AT_SW0_POSITION; // check whether at 0 position
-	if (checkLim1()) tmp_return = AT_SW1_POSITION; // check whether at 1 position
+	if      (checkLim0()) tmp_return = AT_SW0_POSITION; // check whether at 0 position
+	else if (checkLim1()) tmp_return = AT_SW1_POSITION; // check whether at 1 position
 	
 	while (AXIS_SERIAL.available()){
 		char tmp = AXIS_SERIAL.read();
 		if (tmp == ';') return USR_TERMINATION;
 	}
+	//check from limits
+	//added
+	if ((tmp_return == AT_SW0_POSITION) && (dir < 0) && overrideSW0){
+		return tmp_return;
+		//termination if try to move outside of limit0
+	}
+	if ((tmp_return == AT_SW1_POSITION) && (dir > 0) && overrideSW1){
+		return tmp_return;
+		//termination if try to move outside of limit1
+	}
+
+
+	//actually move
 	if (uln_or_driver == 0){ //this means it's using uln stepper
 		step(dir * directionType);
+		curStep += dir;
 	}
 	else{ 					 //this means it's using driver
 		digitalWrite(pin1_or_dir, (dir * directionType) > 0);
@@ -152,7 +166,8 @@ inline uint8_t StepperAxis::adv1step(int8_t dir){
 		digitalWrite(pin2_or_stp, HIGH);
 		delayMicroseconds(udelay);
 		digitalWrite(pin2_or_stp, LOW);
-		delayMicroseconds(udelay); 
+		delayMicroseconds(udelay);
+		curStep += dir; 
 		AXIS_SERIAL.print("1"); 
 	}
 	return tmp_return;
@@ -160,12 +175,12 @@ inline uint8_t StepperAxis::adv1step(int8_t dir){
 
 uint8_t StepperAxis::gotoLim0(){
 	uint8_t tmp;
-	if (overrideSW0 == 0){	//if it's overrided curStep may be at below 0
-							//So we need to 1st make it into Positive curStep 
-							//before we proceed to goto limit0 position
-		gotoStep(1000);		
-							//if 1000 isn't enought, YOU ARE ON YOUR OWN !
-	}
+	// if (overrideSW0 == 0){	//if it's overrided curStep may be at below 0
+	// 						//So we need to 1st make it into Positive curStep 
+	// 						//before we proceed to goto limit0 position
+	// 	gotoStep(1000);		
+	// 						//if 1000 isn't enought, YOU ARE ON YOUR OWN !
+	// }
 
 
 	while(true){
@@ -236,21 +251,23 @@ uint8_t StepperAxis::advStep(long int x){
 
 		if(tmp == AT_SW0_POSITION){
 			if(relativeDir < 0 && overrideSW0){
+				AXIS_SERIAL.println("low");
 				curStep = 0; 
 				return AT_SW0_POSITION;}
 		}
 		if(tmp == AT_SW1_POSITION){
 			if(relativeDir > 0 && overrideSW1){
+				AXIS_SERIAL.println("high");
 				curStep = maxStep; 
 				return AT_SW1_POSITION;
 			}
 		}
 		if (tmp == USR_TERMINATION) {
-			curStep = curStep + x * (i); 
+			// curStep = curStep + x * (i); 
 			return USR_TERMINATION;
 		}
 	}
-	curStep = curStep + x * relativeDir;
+	// curStep = curStep + x * relativeDir;
 
 	return AT_NOR_POSITION;
 }
@@ -261,6 +278,32 @@ uint8_t StepperAxis::gotoStep(long int x){
 		return advStep(x - curStep);
 	}
 }
+
+uint8_t StepperAxis::adv_then_limit0(long int x){
+	uint8_t tmp;
+	tmp = advStep(x);
+	if (tmp == USR_TERMINATION) 
+		return tmp;
+	tmp = gotoLim0();
+	return tmp;
+}
+
+uint8_t StepperAxis::goto_then_limit0(long int x){
+	uint8_t tmp;
+	tmp = gotoStep(x);
+	if (tmp == USR_TERMINATION) 
+		return tmp;
+	tmp = gotoLim0();
+	return tmp;
+}
+
+
+
+uint8_t StepperAxis::gotoStep_sudo(long int x){
+	return advStep(x - curStep);
+}
+
+
 
 void StepperAxis::print(char * str){
 	AXIS_SERIAL.print(str);
@@ -274,8 +317,11 @@ void StepperAxis::handler() {
 		AXIS_SERIAL.println("No argument found");
 		return;
 	}
-	else if (!strcmp(argument, "goto"  ))      {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); gotoStep(tmp); disable();}
-	else if (!strcmp(argument, "adv"   ))      {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); advStep(tmp) ; disable();}
+	else if (!strcmp(argument, "goto"  ))      {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); gotoStep(tmp)         ; disable();}
+	else if (!strcmp(argument, "sudo_goto"))   {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); gotoStep_sudo(tmp)    ; disable();}
+	else if (!strcmp(argument, "adv"   ))      {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); advStep(tmp)          ; disable();}
+	else if (!strcmp(argument, "adv_limit0"))  {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); adv_then_limit0(tmp)  ; disable();}
+	else if (!strcmp(argument, "goto_limit0")) {enable(); argument = strtok(NULL, DELIMETERS);long int tmp = atol(argument); goto_then_limit0(tmp) ; disable();}
 	else if (!strcmp(argument, "limit0"))      {enable(); gotoLim0(); disable();}
 	else if (!strcmp(argument, "limit1"))      {enable(); gotoLim1(); disable();}
 	else if (!strcmp(argument, "check0" ))     {AXIS_SERIAL.println(checkLim0());}

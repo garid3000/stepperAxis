@@ -82,7 +82,10 @@ public:
 	uint8_t gotoLim1();
 
 	uint8_t advStep(long int);
+	uint8_t adv_then_limit0(long int);
+	uint8_t goto_then_limit0(long int);
 	uint8_t gotoStep(long int);
+	uint8_t gotoStep_sudo(long int);
     void    handler();
     void    print(char *);
 
